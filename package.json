@@ -1,0 +1,23 @@
+{
+  "name": "backend_keygen",
+  "version": "1.0.0",
+  "description": "Keygen based on IP address, time and a random salt value. ",
+  "license": "ISC",
+  "author": "MintOcha",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "helmet": "^7.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
