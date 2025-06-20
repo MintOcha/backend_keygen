@@ -14,8 +14,7 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
 // Helper function to get client IP address
 function getClientIpAddress(req) {
-    return req.headers['x-forwarded-for'] || 
-           req.connection.remoteAddress || 
+    return req.connection.remoteAddress || 
            req.socket.remoteAddress ||
            (req.connection.socket ? req.connection.socket.remoteAddress : null) ||
            req.ip;
