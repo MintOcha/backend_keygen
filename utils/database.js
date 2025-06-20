@@ -1,62 +1,78 @@
-const mysql = require('mysql');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
-const connection = mysql.createConnection({
-  host: 'localhost',
-  port: 6969,
-  user: 'root',
-  password: 'plsNoSSRFVuln',
-  database: 'keys'
-});
+// Create database file in the project root
+const dbPath = path.join(__dirname, '../db/', 'keys.db');
+const db = new sqlite3.Database(dbPath);
 
-export function initDatabase() {
-  connection.connect((err) => {
-    if (err) {
-      console.error('Error connecting to the database:', err);
-      return;
-    }
-    console.log('Connected to the database');
+function initDatabase() {
+  return new Promise((resolve, reject) => {
+    console.log('Initializing SQLite database...');
+    
+    db.serialize(() => {      // Create keys table with SQLite syntax
+      const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key TEXT NOT NULL UNIQUE,
+            ipAddress TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            expiresAt INTEGER
+        )
+      `;
 
-    // Structure is actually keys database -> keys table
-    const createTableQuery = `
-    CREATE TABLE IF NOT EXISTS keys (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        key VARCHAR(64) NOT NULL UNIQUE,
-        ipAddress VARCHAR(45) NOT NULL,
-        timestamp DATETIME NOT NULL,
-        expiresAt DATETIME,
-    )
-    `;
-
-    connection.query(createTableQuery, (err, results) => {
-    if (err) {
-        console.error('Error creating keys table:', err);
-    } else {
-        console.log('Keys table created or already exists');
-    }
-
+      db.run(createTableQuery, (err) => {
+        if (err) {
+          console.error('Error creating keys table:', err);
+          reject(err);
+        } else {
+          console.log('Keys table created or already exists');
+          resolve();
+        }
+      });
     });
   });
 }
 
-function querySQL(query) {
+function querySQL(query, params = []) {
   return new Promise((resolve, reject) => {
-    connection.query(query, (error, results) => {
-      if (error) {
-        console.error('SQL query error:', error);
-        reject(error);
+    if (query.trim().toUpperCase().startsWith('SELECT')) {
+      db.all(query, params, (error, rows) => {
+        if (error) {
+          console.error('SQL query error:', error);
+          reject(error);
+        } else {
+          resolve(rows);
+        }
+      });
+    } else {
+      db.run(query, params, function(error) {
+        if (error) {
+          console.error('SQL query error:', error);
+          reject(error);
+        } else {
+          resolve({ insertId: this.lastID, changes: this.changes });
+        }
+      });
+    }
+  });
+}
+
+function closeDatabase() {
+  return new Promise((resolve, reject) => {
+    db.close((err) => {
+      if (err) {
+        console.error('Error closing the database connection:', err);
+        reject(err);
       } else {
-        resolve(results);
+        console.log('Database connection closed');
+        resolve();
       }
     });
   });
 }
 
-function closeDatabase() {
-  connection.end((err) => {
-    if (err) {
-      console.error('Error closing the database connection:', err);
-    } else {
-      console.log('Database connection closed');
-    }
-  });
+module.exports = {
+    initDatabase,
+    querySQL,
+    closeDatabase
 }

@@ -1,6 +1,6 @@
 # Backend Keygen API
 
-A Node.js backend server for generating and verifying cryptographic keys based on IP address, timestamp, and salt values. Useful for HTTP verification of keys on servers running license verification. 
+A Node.js backend server for generating and verifying cryptographic keys. For use with hysteria2 verification (for now), using addr, auth, tx as the parameters. Not meant to be exposed to public, but for use of local programs ONLY. do NOT expose this endpoint.
 
 ## Features
 
@@ -42,27 +42,21 @@ Generates a new key based on the client's IP address, current timestamp, and opt
 **Request Body:**
 ```json
 {
-    "userId": "user123",
-    "purpose": "authentication",
-    "expirationTime": 3600,
-    "customSalt": "optional-custom-salt"
+    "addr": "0.0.0.0", // Logged address of user (Note: This is backend!)
+    "expiresIn": 86400 // Seconds to key expiry. Defaults to 1 day.
 }
 ```
 
 **Response:**
 ```json
 {
-    "success": true,
-    "key": "a1b2c3d4e5f6...",
-    "metadata": {
-        "ipAddress": "192.168.1.100",
-        "timestamp": 1703097600000,
-        "salt": "randomsalt123",
-        "userId": "user123",
-        "purpose": "authentication",
-        "expiresAt": "2023-12-20T15:30:00.000Z",
-        "requestArgs": {}
-    }
+  success: true,
+  key: generatedKey,
+  details: {
+      ipAddress: addr,
+      timestamp,
+      expiresAt: expiresAt,
+  }
 }
 ```
 

@@ -1,11 +1,11 @@
 const axios = require('axios');
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = 'http://localhost:3000'; // Change this to your backend server URL
 
 // Test data
 const testData = {
-    userId: 'testuser123',
-    expirationTime: 3600, // 1 hour
+    addr: '127.0.0.1', // Added the required addr field
+    expiresIn: 3600, // 1 hour
     customData: 'some custom information'
 };
 
@@ -17,7 +17,7 @@ async function testKeyGeneration() {
         
         console.log('✅ Key generated successfully:');
         console.log('Key:', response.data.key);
-        console.log('Metadata:', JSON.stringify(response.data.metadata, null, 2));
+        console.log('Details:', JSON.stringify(response.data.details, null, 2));
         
         return response.data;
     } catch (error) {
@@ -31,20 +31,16 @@ async function testKeyVerification(keyData) {
         console.log('\n🔍 Testing Key Verification...');
         
         const verificationData = {
-            key: keyData.key,
-            originalTimestamp: keyData.metadata.timestamp,
-            salt: keyData.metadata.salt,
-            originalIpAddress: keyData.metadata.ipAddress,
-            userId: keyData.metadata.userId,
-            purpose: keyData.metadata.purpose,
-            expirationTime: testData.expirationTime
+            addr: keyData.details.ipAddress,
+            auth: keyData.key, // Using the generated key as auth
+            tx: 'test-transaction'
         };
         
         const response = await axios.post(`${BASE_URL}/key/verify`, verificationData);
         
         console.log('✅ Key verification result:');
-        console.log('Is Valid:', response.data.isValid);
-        console.log('Details:', JSON.stringify(response.data.details, null, 2));
+        console.log('OK:', response.data.ok);
+        console.log('ID:', response.data.id);
         
         return response.data;
     } catch (error) {
@@ -58,21 +54,19 @@ async function testInvalidKey() {
         console.log('\n🚫 Testing Invalid Key Verification...');
         
         const invalidData = {
-            key: 'invalid-key-123',
-            originalTimestamp: Date.now(),
-            salt: 'invalid-salt',
-            userId: 'testuser123',
-            purpose: 'api-testing'
+            addr: '127.0.0.1',
+            auth: 'invalid-key-123',
+            tx: 'test-transaction'
         };
         
         const response = await axios.post(`${BASE_URL}/key/verify`, invalidData);
         
         console.log('✅ Invalid key test result:');
-        console.log('Is Valid:', response.data.isValid);
-        console.log('Details:', JSON.stringify(response.data.details, null, 2));
+        console.log('OK:', response.data.ok);
+        console.log('Error:', response.data.error);
         
     } catch (error) {
-        console.error('❌ Invalid key test failed:', error.response?.data || error.message);
+        console.error('✅ Invalid key test result:', error.response?.data || error.message);
     }
 }
 

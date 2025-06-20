@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const crypto = require('crypto');
-const keygen = require('./utils/keygen'); 
+const keygen = require('./utils/keymodule'); 
 const e = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -34,99 +34,72 @@ function generateSalt(length = 16) {
 
 // Key generation endpoint
 app.post('/key/generate', (req, res) => {
-    // Get client IP address
-    const clientIp = getClientIpAddress(req);
-    const expiresAt = Date.now() + 86400 * 1000 // Defaults to 1 day expiration.
+    // const clientIp = getClientIpAddress(req);
+    const nextDay = Date.now() + 86400 * 1000; // Defaults to 1 day expiration
+    
     // Extract arguments from request body
-    const {
-        addr,
-        auth,
-        tx
-    } = req.body;
+    const { addr, expiresIn } = req.body;
+    
+    // Use provided expiresAt if available, otherwise use nextDay
+    const expiration = Date.now() + expiresIn * 1000 || nextDay;
 
-    keygen.generateKey(addr, auth, tx, expiresAt)
+    keygen.generateKey(addr, expiration) // ONLY responsible for generating key, does not check auth
         .then((response) => {
-            
             res.status(200).json(response);
-        }
-        ).catch((error) => {
+        })
+        .catch((error) => {
             console.error('Error generating key:', error);
-});
+            res.status(500).json({
+                success: false,
+                error: 'Failed to generate key'
+            });
+        });
+    
+}); // Endpoint should NOT be exposed to the public. Local endpt for hy2 to call
 
 // Key verification endpoint
-app.post('/key/verify', (req, res) => {
+app.post('/key/verify', async (req, res) => {
     try {
-        // Get client IP address
         const clientIp = getClientIpAddress(req);
-        
-        // Extract arguments from request body
+
         const {
-            key,
-            originalTimestamp,
-            salt,
-            originalIpAddress,
-            userId,
-            purpose,
-            expirationTime,
-            ...otherArgs
-        } = req.body;
-        
+            addr,
+            auth,
+            tx
+        } = req.body; // Format fits hysteria2 needs
+
+
         // Validate required fields
-        if (!key || !originalTimestamp || !salt) {
+        if (!addr || !auth) {
             return res.status(400).json({
                 success: false,
-                error: 'Missing required fields: key, originalTimestamp, and salt are required'
+                error: 'Missing required fields'
             });
         }
         
-        // Use provided IP or current IP for verification
-        const ipForVerification = originalIpAddress || clientIp;
+        const keyValidity = await keygen.verifyKey(auth); 
         
-        // Regenerate the key with provided parameters
-        const expectedKey = generateKey(ipForVerification, originalTimestamp, salt);
-        
-        // Check if key matches
-        const isValid = crypto.timingSafeEqual(
-            Buffer.from(key, 'hex'),
-            Buffer.from(expectedKey, 'hex')
-        );
-        
-        // Check expiration if provided
-        let isExpired = false;
-        if (expirationTime && originalTimestamp) {
-            const expirationTimestamp = parseInt(originalTimestamp) + (expirationTime * 1000);
-            isExpired = Date.now() > expirationTimestamp;
-        }
         
         // Log the verification request
         console.log(`Key verification request from ${clientIp}:`, {
-            keyToVerify: key,
-            expectedKey,
-            isValid,
-            isExpired,
-            userId,
-            purpose,
+            keyToVerify: auth,
+            isValid: keyValidity.isValid,
             allArgs: req.body
-        });
+        }); // Only log req body and response basically
         
-        // Response object
-        const response = {
-            success: true,
-            isValid: isValid && !isExpired,
-            details: {
-                keyMatch: isValid,
-                isExpired,
-                verificationIp: ipForVerification,
-                currentIp: clientIp,
-                timestamp: Date.now(),
-                userId,
-                purpose,
-                requestArgs: otherArgs
-            }
-        };
-        
-        res.status(200).json(response);
-        
+
+        if (keyValidity.isValid) {
+            return res.status(200).json({
+                ok: true,
+                id: auth
+            });
+        } else {
+            return res.status(400).json({
+                ok: false,
+                error: 'Invalid/expired key'
+            });
+        }
+
     } catch (error) {
         console.error('Error verifying key:', error);
         res.status(500).json({
@@ -148,13 +121,8 @@ app.get('/health', (req, res) => {
 // Root endpoint
 app.get('/', (req, res) => {
     res.status(200).json({
-        message: 'Backend Keygen API',
-        version: '1.0.0',
-        endpoints: {
-            generate: 'POST /key/generate',
-            verify: 'POST /key/verify',
-            health: 'GET /health'
-        }
+        message: 'Backend Keygen API. If you see this from outside, please configure this endpoint to NOT be forwarded.',
+        version: '1.0.0'
     });
 });
 
@@ -178,9 +146,6 @@ app.use('*', (req, res) => {
 // Start the server
 app.listen(PORT, () => {
     console.log(`Backend Keygen server is running on port ${PORT}`);
-    console.log(`Health check: http://localhost:${PORT}/health`);
-    console.log(`Generate key: POST http://localhost:${PORT}/key/generate`);
-    console.log(`Verify key: POST http://localhost:${PORT}/key/verify`);
 });
 
 module.exports = app;
