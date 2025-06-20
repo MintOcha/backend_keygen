@@ -5,7 +5,6 @@ const BASE_URL = 'http://localhost:3000';
 // Test data
 const testData = {
     userId: 'testuser123',
-    purpose: 'api-testing',
     expirationTime: 3600, // 1 hour
     customData: 'some custom information'
 };

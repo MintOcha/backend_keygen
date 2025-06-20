@@ -2,7 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const crypto = require('crypto');
-
+const keygen = require('./utils/keygen'); 
+const e = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -33,65 +34,23 @@ function generateSalt(length = 16) {
 
 // Key generation endpoint
 app.post('/key/generate', (req, res) => {
-    try {
-        // Get client IP address
-        const clientIp = getClientIpAddress(req);
-        
-        // Get current timestamp
-        const timestamp = Date.now();
-        
-        // Extract arguments from request body
-        const {
-            userId,
-            purpose,
-            expirationTime,
-            customSalt,
-            ...otherArgs
-        } = req.body;
-        
-        // Generate or use provided salt
-        const salt = customSalt || generateSalt();
-        
-        // Generate the key
-        const generatedKey = generateKey(clientIp, timestamp, salt);
-        
-        // Calculate expiration timestamp if provided
-        const expiresAt = expirationTime ? 
-            new Date(timestamp + (expirationTime * 1000)) : 
-            null;
-        
-        // Log the request for debugging
-        console.log(`Key generation request from ${clientIp}:`, {
-            userId,
-            purpose,
-            timestamp: new Date(timestamp).toISOString(),
-            allArgs: req.body
-        });
-        
-        // Response object
-        const response = {
-            success: true,
-            key: generatedKey,
-            metadata: {
-                ipAddress: clientIp,
-                timestamp,
-                salt,
-                userId,
-                purpose,
-                expiresAt: expiresAt ? expiresAt.toISOString() : null,
-                requestArgs: otherArgs
-            }
-        };
-        
-        res.status(200).json(response);
-        
-    } catch (error) {
-        console.error('Error generating key:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Internal server error during key generation'
-        });
-    }
+    // Get client IP address
+    const clientIp = getClientIpAddress(req);
+    const expiresAt = Date.now() + 86400 * 1000 // Defaults to 1 day expiration.
+    // Extract arguments from request body
+    const {
+        addr,
+        auth,
+        tx
+    } = req.body;
+
+    keygen.generateKey(addr, auth, tx, expiresAt)
+        .then((response) => {
+            
+            res.status(200).json(response);
+        }
+        ).catch((error) => {
+            console.error('Error generating key:', error);
 });
 
 // Key verification endpoint
