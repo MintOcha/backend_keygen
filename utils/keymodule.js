@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const database = require('./database.js'); 
 
+const ipCheck = true;
+
 // Initialize the database connection asynchronously
 database.initDatabase().then(() => {
     console.log('Database initialized successfully');
@@ -11,7 +13,7 @@ database.initDatabase().then(() => {
 function randomKey(){
     const hex32 = crypto.randomBytes(15).toString('hex'); // One missing byte for checksum
     const last_byte = crypto.createHash('sha256').update(hex32).digest()[0]; // Calculate checksum
-    const final_key = hex32.slice(0, 8) + '-' + hex32.slice(8, 16) + '-' + hex32.slice(16, 24) + '-' + hex32.slice(24, 30) + last_byte.toString(16); 
+    const final_key = hex32.slice(0, 8) + '-' + hex32.slice(8, 16) + '-' + hex32.slice(16, 24) + '-' + hex32.slice(24, 30) + last_byte.toString(16).padStart(2, '0'); 
     const upperKey = final_key.toUpperCase(); // Convert to uppercase
     console.log("Generated Key:", upperKey);
     return upperKey;
@@ -24,7 +26,7 @@ function verifyKeyHash(key){
         console.error("Invalid key length:", key.length);
         return false;
     }
-    first_part = key.slice(0, 30);
+    const first_part = key.slice(0, 30);
     const hash = crypto.createHash('sha256').update(first_part).digest()[0];
     const last_byte = parseInt(key.slice(30, 32), 16);
     console.log("Verifying Key:", key, "Hash:", hash, "Last Byte:", last_byte);
@@ -63,13 +65,13 @@ function generateKey(addr, expiresAt) { // tx used as salt. it is the client dow
     });
 }
 
-function verifyKey(key){
+function verifyKey(key, clientIp = null){
     // Log the verification request for debugging
-    console.log(`Key verification request for key: ${key}`);
+    console.log(`Key verification request for key: ${key}, clientIp: ${clientIp}`);
 
     if (!verifyKeyHash(key)) {
         console.log('Invalid key format or checksum');
-        return { isValid: false, details: null };
+        return Promise.resolve({ isValid: false, details: null, reason: 'Invalid key format or checksum' });
     }
 
     // Query the database to check if the key exists - Fixed SQL for SQLite
@@ -79,12 +81,47 @@ function verifyKey(key){
             
             if (results.length === 1) {
                 const keyData = results[0];
+                  // Check IP address if ipCheck is enabled and clientIp is provided
+                if (ipCheck && clientIp && keyData.ipAddress !== clientIp) {
+                    // Allow localhost connections to pass (IPv4 vs IPv6 localhost)
+                    const isLocalhostStored = keyData.ipAddress === '127.0.0.1' || keyData.ipAddress === '::1';
+                    const isLocalhostClient = clientIp === '127.0.0.1' || clientIp === '::1';
+                    
+                    if (!(isLocalhostStored && isLocalhostClient)) {
+                        console.log('IP mismatch:', {
+                            storedIp: keyData.ipAddress,
+                            clientIp: clientIp,
+                            ipCheckEnabled: ipCheck,
+                            localhostBypass: false
+                        });
+                        return {
+                            isValid: false,
+                            details: {
+                                key: keyData.key,
+                                ipAddress: keyData.ipAddress,
+                                timestamp: keyData.timestamp,
+                                expiresAt: keyData.expiresAt
+                            },
+                            reason: 'IP address mismatch'
+                        };
+                    } else {
+                        console.log('Localhost IP check bypass:', {
+                            storedIp: keyData.ipAddress,
+                            clientIp: clientIp,
+                            localhostBypass: true
+                        });
+                    }
+                }
                 
                 // Check if key is still valid (not expired) - comparing Unix timestamps
                 let isValid = true;
+                let reason = null;
                 if (keyData.expiresAt) {
                     const currentTime = Date.now();
                     isValid = keyData.expiresAt > currentTime;
+                    if (!isValid) {
+                        reason = 'Key expired';
+                    }
                     console.log('Expiration check:', {
                         expiresAt: keyData.expiresAt,
                         expiresAtDate: new Date(keyData.expiresAt).toISOString(),
@@ -101,11 +138,12 @@ function verifyKey(key){
                         ipAddress: keyData.ipAddress,
                         timestamp: keyData.timestamp,
                         expiresAt: keyData.expiresAt
-                    }
+                    },
+                    reason
                 };
             } else {
                 console.log('Key not found in database');
-                return { isValid: false, details: null };
+                return { isValid: false, details: null, reason: 'Key not found in database' };
             }
         })
         .catch(error => {
@@ -116,5 +154,6 @@ function verifyKey(key){
 
 module.exports = {
     generateKey,
-    verifyKey
+    verifyKey,
+    ipCheck
 }

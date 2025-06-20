@@ -60,8 +60,6 @@ app.post('/key/generate', (req, res) => {
 // Key verification endpoint
 app.post('/key/verify', async (req, res) => {
     try {
-        const clientIp = getClientIpAddress(req);
-
         const {
             addr,
             auth,
@@ -76,14 +74,15 @@ app.post('/key/verify', async (req, res) => {
                 error: 'Missing required fields'
             });
         }
-        
-        const keyValidity = await keygen.verifyKey(auth); 
+          const keyValidity = await keygen.verifyKey(auth, addr); 
         
         
         // Log the verification request
         console.log(`Key verification request from ${clientIp}:`, {
             keyToVerify: auth,
             isValid: keyValidity.isValid,
+            reason: keyValidity.reason,
+            ipCheckEnabled: keygen.ipCheck,
             allArgs: req.body
         }); // Only log req body and response basically
         
@@ -96,7 +95,7 @@ app.post('/key/verify', async (req, res) => {
         } else {
             return res.status(400).json({
                 ok: false,
-                error: 'Invalid/expired key'
+                error: keyValidity.reason || 'Invalid/expired key'
             });
         }
 
