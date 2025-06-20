@@ -1,0 +1,22 @@
+{
+  "security": {
+    "ipCheck": true,
+    "allowLocalhostBypass": true
+  },
+  "database": {
+    "path": "./db/keys.db"
+  },
+  "keys": {
+    "defaultExpirationHours": 24,
+    "keyFormat": {
+      "useUppercase": true
+    }
+  },
+  "server": {
+    "port": 3000,
+    "enableDetailedLogging": true
+  },
+  "features": {
+    "enableHealthCheck": true
+  }
+}

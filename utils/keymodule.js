@@ -1,7 +1,11 @@
 const crypto = require('crypto');
 const database = require('./database.js'); 
+const config = require('../config.json');
 
-const ipCheck = true;
+// Load configuration values
+const ipCheck = config.security.ipCheck;
+const allowLocalhostBypass = config.security.allowLocalhostBypass;
+const enableDetailedLogging = config.server.enableDetailedLogging;
 
 // Initialize the database connection asynchronously
 database.initDatabase().then(() => {
@@ -14,8 +18,10 @@ function randomKey(){
     const hex32 = crypto.randomBytes(15).toString('hex'); // One missing byte for checksum
     const last_byte = crypto.createHash('sha256').update(hex32).digest()[0]; // Calculate checksum
     const final_key = hex32.slice(0, 8) + '-' + hex32.slice(8, 16) + '-' + hex32.slice(16, 24) + '-' + hex32.slice(24, 30) + last_byte.toString(16).padStart(2, '0'); 
-    const upperKey = final_key.toUpperCase(); // Convert to uppercase
-    console.log("Generated Key:", upperKey);
+    const upperKey = config.keys.keyFormat.useUppercase ? final_key.toUpperCase() : final_key;
+    if (enableDetailedLogging) {
+        console.log("Generated Key:", upperKey);
+    }
     return upperKey;
 }
 
@@ -70,8 +76,8 @@ function verifyKey(key, clientIp = null){
     console.log(`Key verification request for key: ${key}, clientIp: ${clientIp}`);
 
     if (!verifyKeyHash(key)) {
-        console.log('Invalid key format or checksum');
-        return Promise.resolve({ isValid: false, details: null, reason: 'Invalid key format or checksum' });
+        console.log('Invalid key format');
+        return Promise.resolve({ isValid: false, details: null, reason: 'Invalid key format' });
     }
 
     // Query the database to check if the key exists - Fixed SQL for SQLite
@@ -80,14 +86,40 @@ function verifyKey(key, clientIp = null){
             console.log('Database query results:', results); // Debug log
             
             if (results.length === 1) {
-                const keyData = results[0];
-                  // Check IP address if ipCheck is enabled and clientIp is provided
+                const keyData = results[0];                // Check IP address if ipCheck is enabled and clientIp is provided
                 if (ipCheck && clientIp && keyData.ipAddress !== clientIp) {
-                    // Allow localhost connections to pass (IPv4 vs IPv6 localhost)
-                    const isLocalhostStored = keyData.ipAddress === '127.0.0.1' || keyData.ipAddress === '::1';
-                    const isLocalhostClient = clientIp === '127.0.0.1' || clientIp === '::1';
-                    
-                    if (!(isLocalhostStored && isLocalhostClient)) {
+                    // Allow localhost connections to pass if configured (IPv4 vs IPv6 localhost)
+                    if (allowLocalhostBypass) {
+                        const isLocalhostStored = keyData.ipAddress === '127.0.0.1' || keyData.ipAddress === '::1';
+                        const isLocalhostClient = clientIp === '127.0.0.1' || clientIp === '::1';
+                        
+                        if (isLocalhostStored && isLocalhostClient) {
+                            if (enableDetailedLogging) {
+                                console.log('Localhost IP check bypass:', {
+                                    storedIp: keyData.ipAddress,
+                                    clientIp: clientIp,
+                                    localhostBypass: true
+                                });
+                            }
+                        } else {
+                            console.log('IP mismatch:', {
+                                storedIp: keyData.ipAddress,
+                                clientIp: clientIp,
+                                ipCheckEnabled: ipCheck,
+                                localhostBypass: false
+                            });
+                            return {
+                                isValid: false,
+                                details: {
+                                    key: keyData.key,
+                                    ipAddress: keyData.ipAddress,
+                                    timestamp: keyData.timestamp,
+                                    expiresAt: keyData.expiresAt
+                                },
+                                reason: 'IP address mismatch'
+                            };
+                        }
+                    } else {
                         console.log('IP mismatch:', {
                             storedIp: keyData.ipAddress,
                             clientIp: clientIp,
@@ -104,12 +136,6 @@ function verifyKey(key, clientIp = null){
                             },
                             reason: 'IP address mismatch'
                         };
-                    } else {
-                        console.log('Localhost IP check bypass:', {
-                            storedIp: keyData.ipAddress,
-                            clientIp: clientIp,
-                            localhostBypass: true
-                        });
                     }
                 }
                 

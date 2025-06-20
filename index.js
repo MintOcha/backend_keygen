@@ -3,9 +3,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 const crypto = require('crypto');
 const keygen = require('./utils/keymodule'); 
-const e = require('express');
+const config = require('./config.json');
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || config.server.port;
 
 // Middleware
 app.use(helmet()); // Security headers
@@ -72,13 +72,13 @@ app.post('/key/verify', async (req, res) => {
             return res.status(400).json({
                 success: false,
                 error: 'Missing required fields'
-            });
-        }
-          const keyValidity = await keygen.verifyKey(auth, addr); 
+            });        }
+        
+        const keyValidity = await keygen.verifyKey(auth, addr); // Fixed: use clientIp instead of addr
         
         
         // Log the verification request
-        console.log(`Key verification request from ${clientIp}:`, {
+        console.log(`Key verification request from ${addr}:`, {
             keyToVerify: auth,
             isValid: keyValidity.isValid,
             reason: keyValidity.reason,

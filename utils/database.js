@@ -1,8 +1,9 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const config = require('../config.json');
 
-// Create database file in the project root
-const dbPath = path.join(__dirname, '../db/', 'keys.db');
+// Create database file using config path
+const dbPath = path.join(__dirname, '..', config.database.path);
 const db = new sqlite3.Database(dbPath);
 
 function initDatabase() {

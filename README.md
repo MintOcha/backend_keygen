@@ -28,6 +28,11 @@ npm install
 npm start
 ```
 
+Test the server:
+````bash
+npm run test
+```
+
 For development with auto-reload:
 ```bash
 npm run dev
@@ -50,12 +55,12 @@ Generates a new key based on the client's IP address, current timestamp, and opt
 **Response:**
 ```json
 {
-  success: true,
-  key: generatedKey,
-  details: {
-      ipAddress: addr,
-      timestamp,
-      expiresAt: expiresAt,
+  "success": true,
+  "key": "generatedKey",
+  "details": {
+      "ipAddress": "addr",
+      "timestamp": 1703097600000,
+      "expiresAt": 1703184000000
   }
 }
 ```
@@ -67,14 +72,11 @@ Verifies a previously generated key.
 **Request Body:**
 ```json
 {
-    "key": "a1b2c3d4e5f6...",
-    "originalTimestamp": 1703097600000,
-    "salt": "randomsalt123",
-    "originalIpAddress": "192.168.1.100",
-    "userId": "user123",
-    "purpose": "authentication",
-    "expirationTime": 3600
+    addr, // Client address
+    auth, // Client auth value
+    tx // Transmission rate on server, included by default for hy2.
 }
+
 ```
 
 **Response:**
@@ -107,54 +109,6 @@ Health check endpoint.
     "uptime": 3600
 }
 ```
-
-## Usage Examples
-
-### Generate a Key
-```bash
-curl -X POST http://localhost:3000/key/generate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "userId": "user123",
-    "purpose": "api-access",
-    "expirationTime": 3600
-  }'
-```
-
-### Verify a Key
-```bash
-curl -X POST http://localhost:3000/key/verify \
-  -H "Content-Type: application/json" \
-  -d '{
-    "key": "your-generated-key-here",
-    "originalTimestamp": 1703097600000,
-    "salt": "your-salt-here",
-    "userId": "user123",
-    "purpose": "api-access",
-    "expirationTime": 3600
-  }'
-```
-
-## Key Generation Algorithm
-
-Keys are generated using the following process:
-1. Extract client IP address (with proxy header support)
-2. Get current timestamp
-3. Generate or use provided salt
-4. Create data string: `${ipAddress}-${timestamp}-${salt}`
-5. Generate SHA-256 hash of the data string
-
-## Security Features
-
-- **Timing-Safe Comparison**: Uses `crypto.timingSafeEqual()` for key verification
-- **Helmet Security**: Adds security headers
-- **CORS Support**: Configurable cross-origin resource sharing
-- **Input Validation**: Validates required fields
-- **Error Handling**: Comprehensive error handling and logging
-
-## Environment Variables
-
-- `PORT`: Server port (default: 3000)
 
 ## Development
 

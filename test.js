@@ -55,7 +55,7 @@ async function testInvalidKey() {
         
         const invalidData = {
             addr: '127.0.0.1',
-            auth: 'invalid-key-123',
+            auth: '0C29119C-E2DF574A-D1E199D4-0D6C4472',
             tx: 'test-transaction'
         };
         
